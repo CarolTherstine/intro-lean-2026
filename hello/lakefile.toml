@@ -1,0 +1,20 @@
+name = "hello"
+version = "0.1.0"
+defaultTargets = ["Hello"]
+testDriver = "Hello"
+requiresModuleSystem = true
+
+[leanOptions]
+autoImplicit = false
+relaxedAutoImplicit = false
+
+[[require]]
+name = "physlib"
+scope = "leanprover-community"
+
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"
+
+[[lean_lib]]
+name = "Hello"
