@@ -1,0 +1,10 @@
+name = "dagwn"
+version = "0.1.0"
+defaultTargets = ["dagwn"]
+
+[[lean_lib]]
+name = "Dagwn"
+
+[[lean_exe]]
+name = "dagwn"
+root = "Main"
