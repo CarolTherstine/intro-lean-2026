@@ -1,3 +1,4 @@
+--semantic lexical network - Wordnet
 structure Edge where
   target_id : Nat
   relation_name : String
