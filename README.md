@@ -1,4 +1,4 @@
-# Introduction to Lean 2026
+# 2026.2 INF2290 - Introduction to Lean
 
 See the example project [hello](hello).
 
