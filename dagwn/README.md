@@ -1,7 +1,7 @@
 # WORDNET — Semantic Lexical Network
 
 > **References**
-> - [Kementzey BSc Thesis](https://lean-forward.github.io/pubs/kementzey_bsc_thesis)
+> - [Kementzey BSc Thesis](https://lean-forward.github.io/pubs/kementzey_bsc_thesis.pdf)
 > - [Mathlib4 — SimpleGraph](https://github.com/leanprover-community/mathlib4/tree/fbe77601aba49915466829996621694648a19266/Mathlib/Combinatorics/SimpleGraph)
 
 ---
