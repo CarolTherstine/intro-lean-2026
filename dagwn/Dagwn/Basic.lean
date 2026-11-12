@@ -7,12 +7,14 @@ structure Edge where
 structure Vertex where
   id : Nat
   concept : String
-  out_edges_list : List Edge
+  out_edges : List Edge
 --  deriving Repr, BEq
 
 structure Graph where
   vertices : List Vertex
 --  deriving Repr
+
+
 
 def get_vertex (g : Graph) (id : Nat) :=
   g.vertices.find? (fun v => v.id == id)
@@ -23,18 +25,52 @@ def has_edge_to (edges : List Edge) (target : Nat) : Bool :=
 def IsHyponym (g : Graph) (x y : Nat) : Bool :=
   match get_vertex g x with
   | none => false
-  | some v => has_edge_to v.out_edges_list y
+  | some v => has_edge_to v.out_edges y
 
 def IsHypernym (g : Graph) (x y : Nat) : Bool :=
   IsHyponym g y x
 
 --Aqui colocar vertice ou deiar nat considerando ser o ID?
-theorem Irreflexivity : ∀ i : Nat, ¬ IsHypernym g i i := by
-  intro i
-  rfl
+def Irreflexivity (g : Graph) : Prop
+  := ∀ i : Nat, (get_vertex g i).isSome → ¬ IsHypernym g i i
+
+def Irreflexivity_bool (g : Graph) : Bool
+  := g.vertices.all (fun x => !IsHypernym g x.id x.id)
+
 --Theorem 1 : Irreflexivity
 -- ∀ i (¬ (i → i))
+structure Graph_Synset where
+  g : Graph
+  irr: Irreflexivity_bool g
 
+structure Graph_Synset2 where
+  g : Graph
+  irr: Irreflexivity_bool g :=by rfl
+
+
+def penguim : Vertex :=
+  {id:= 2, concept:= "penguim" , out_edges := List.nil}
+
+def bird : Vertex :=
+  {id:= 1, concept:= "bird" , out_edges := [Edge.mk 2 "is_a"]}
+
+def bird2: Vertex :=
+  {id:= 3, concept:= "bird2" , out_edges := [Edge.mk 3 "is_a"]}
+
+def graphh : Graph :=
+  {vertices := [bird, penguim]}
+
+def graphh2 : Graph :=
+  {vertices := [bird, penguim, bird2]}
+
+theorem prov_irr : Irreflexivity_bool (graphh) := by
+  rfl
+
+def graphsemantic : Graph_Synset :=
+  {g:= graphh, irr:= rfl}
+
+def graphsemantic2 : Graph_Synset2 :=
+  {g:= graphh2}
 --==========================================================
 theorem Transitivity : ∀ i j k : Nat , ∀ g : Graph , (IsHypernym g i j ∧ IsHypernym g j k → IsHypernym g i k) := by
   intro i j k g
