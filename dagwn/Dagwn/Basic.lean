@@ -123,36 +123,39 @@ end SynsetGraph
 --================================================================
 --                SANITY CHECKS
 --================================================================
+
+-- ─── helper ──────────────────────────────────────────────────────
 def check (g : Graph) : Bool :=
   Irreflexivity_bool g &&
   Asymmetry_bool g &&
   Transitivity_bool g &&
   HasOneUniqueRoot_bool g
 
+--================================================================
+--  GRAPHS: one per property, so each test isolates one failure
+--================================================================
+
+/-- Well-formed tree: animal → {dog, cat}. Passes every check. -/
 def tree : Graph :=
   { vertices :=
     [ { id := 0, concept := "animal", out_edges :=
         [ { target_id := 1, relation_name := "is-a" }
         , { target_id := 2, relation_name := "is-a" } ] }
-    , { id := 1, concept := "dog",    out_edges := [] }
-    , { id := 2, concept := "cat",    out_edges := [] } ] }
+    , { id := 1, concept := "dog", out_edges := [] }
+    , { id := 2, concept := "cat", out_edges := [] } ] }
 
-#eval Irreflexivity_bool     tree   -- true
-#eval Asymmetry_bool         tree   -- true
-#eval Transitivity_bool      tree   -- true
-#eval HasOneUniqueRoot_bool  tree   -- true
-#eval check tree
-
-
+/-- Self-loop 0 → 0: fails irreflexivity, asymmetry, unique-root. -/
 def selfLoop : Graph :=
   { vertices :=
     [ { id := 0, concept := "a", out_edges := [{ target_id := 0, relation_name := "r" }] } ] }
 
+/-- 2-cycle 0 ⇄ 1: fails asymmetry (and unique-root: no in-degree-0 vertex). -/
 def twoCycle : Graph :=
   { vertices :=
     [ { id := 0, concept := "a", out_edges := [{ target_id := 1, relation_name := "r" }] }
     , { id := 1, concept := "b", out_edges := [{ target_id := 0, relation_name := "r" }] } ] }
 
+/-- Two disjoint chains: fails unique-root (two in-degree-0 vertices: 0 and 2). -/
 def forest2 : Graph :=
   { vertices :=
     [ { id := 0, concept := "a", out_edges := [{ target_id := 1, relation_name := "r" }] }
@@ -160,19 +163,15 @@ def forest2 : Graph :=
     , { id := 2, concept := "c", out_edges := [{ target_id := 3, relation_name := "r" }] }
     , { id := 3, concept := "d", out_edges := [] } ] }
 
-def noShortcut : Graph :=   -- 0 → 1 → 2 but NO 0 → 2
+/-- Chain 0 → 1 → 2 with NO shortcut 0 → 2. Passes every check. -/
+def goodChain : Graph :=
   { vertices :=
     [ { id := 0, concept := "a", out_edges := [{ target_id := 1, relation_name := "r" }] }
     , { id := 1, concept := "b", out_edges := [{ target_id := 2, relation_name := "r" }] }
     , { id := 2, concept := "c", out_edges := [] } ] }
 
-def goodChain : Graph :=    -- 0 → 1 → 2, no shortcut: property holds
-  { vertices :=
-    [ { id := 0, concept := "a", out_edges := [{ target_id := 1, relation_name := "r" }] }
-    , { id := 1, concept := "b", out_edges := [{ target_id := 2, relation_name := "r" }] }
-    , { id := 2, concept := "c", out_edges := [] } ] }
-
-def hasShortcut : Graph :=  -- 0 → 1 → 2 AND 0 → 2: property FAILS
+/-- Chain 0 → 1 → 2 AND shortcut 0 → 2. Fails transitivity (shortcut present). -/
+def hasShortcut : Graph :=
   { vertices :=
     [ { id := 0, concept := "a", out_edges :=
         [ { target_id := 1, relation_name := "r" }
@@ -180,17 +179,38 @@ def hasShortcut : Graph :=  -- 0 → 1 → 2 AND 0 → 2: property FAILS
     , { id := 1, concept := "b", out_edges := [{ target_id := 2, relation_name := "r" }] }
     , { id := 2, concept := "c", out_edges := [] } ] }
 
-#eval Irreflexivity_bool    selfLoop    -- false  (0 → 0)
-#eval Asymmetry_bool        twoCycle    -- false
-#eval HasOneUniqueRoot_bool forest2     -- false  (two roots: 0 and 2)
-#eval Transitivity_bool     noShortcut  -- true
-#eval Asymmetry_bool        tree        -- true
-#eval Transitivity_bool     tree        -- true
-#eval HasOneUniqueRoot_bool tree        -- true
-#eval Irreflexivity_bool    tree        -- true
+--================================================================
+--  PER-PROPERTY TESTS  (positive and negative case for each)
+--================================================================
+
+-- ─── Irreflexivity: no x → x ─────────────────────────────────────
+#eval Irreflexivity_bool tree        -- true
+#eval Irreflexivity_bool goodChain   -- true
+#eval Irreflexivity_bool selfLoop    -- false  (0 → 0)
+
+-- ─── Asymmetry: no x ⇝ y with y ⇝ x (for x ≠ y) ─────────────────
+#eval Asymmetry_bool tree            -- true
+#eval Asymmetry_bool goodChain       -- true
+#eval Asymmetry_bool twoCycle        -- false  (0 ⇝ 1 and 1 ⇝ 0)
+#eval Asymmetry_bool selfLoop        -- false  (0 ⇝ 0)
+
+-- ─── Transitivity (= no shortcuts): x→y→z ⟹ NOT x→z ─────────────
 #eval Transitivity_bool tree         -- true   (no 2-hop paths at all)
-#eval Transitivity_bool goodChain    -- true   (0→1→2, no 0→2)   ← the graph you called noShortcut
-#eval Transitivity_bool hasShortcut  -- false  (0→1→2 AND 0→2)   ← the actual counterexample
-#eval Transitivity_bool twoCycle     -- false  (0→1→0: premise holds for x=0,y=1,z=0,
-                                                --   and 0→0? no direct self-loop…
-                                                --   but wait, see below)
+#eval Transitivity_bool goodChain    -- true   (0→1→2, and no 0→2)
+#eval Transitivity_bool hasShortcut  -- false  (0→1→2 AND 0→2)
+#eval Transitivity_bool twoCycle     -- true   (0→1→0 is a cycle, not a shortcut)
+
+-- ─── Unique root: exactly one in-degree-0 vertex that reaches all ─
+#eval HasOneUniqueRoot_bool tree     -- true   (root: animal)
+#eval HasOneUniqueRoot_bool goodChain -- true  (root: 0)
+#eval HasOneUniqueRoot_bool forest2  -- false  (two roots: 0 and 2)
+#eval HasOneUniqueRoot_bool twoCycle -- false  (no in-degree-0 vertex)
+#eval HasOneUniqueRoot_bool selfLoop -- false  (no in-degree-0 vertex)
+
+-- ─── check: all four at once ────────────────────────────────────
+#eval check tree         -- true
+#eval check goodChain    -- true
+#eval check selfLoop     -- false
+#eval check twoCycle     -- false
+#eval check forest2      -- false
+#eval check hasShortcut  -- false
