@@ -37,14 +37,16 @@ def has_edge_to_in_g (g : Graph) (x : Nat) : Bool :=
 --                SPECIFIC FUNCTIONS
 --================================================================
 --lower/child
---is x a parent to y (can be indirect)
+--is x a parent to y
+--is y an hyponym of x
 def DirectHyponym (g : Graph) (x y : Nat) : Bool :=
   match get_vertex g x with
   | none   => false
   | some v => has_edge_to v.out_edges y
 
 --upper/parent
---is x a child to y (can be indirect)
+--is x a child to y
+--is y an hypernym of x
 def DirectHypernym (g : Graph) (x y : Nat) : Bool :=
   DirectHyponym g y x
 
@@ -68,13 +70,13 @@ def Irreflexivity_bool (g : Graph) : Bool
   := g.vertices.all (fun x => !DirectHypernym g x.id x.id)
 
 --Theorem 2 : Transitivity
--- ∀ (x, y , z ) (x → y ∧ y → z) → x → z
+-- ∀ (x, y , z ) (x → y ∧ y → z) → x indirect → z
 def Transitivity_bool (g : Graph) : Bool :=
   g.vertices.all (fun x =>
     g.vertices.all (fun y =>
       g.vertices.all (fun z =>
-        (DirectHypernym g x.id y.id && DirectHypernym g y.id z.id) -> IndirectHypernym g x.id z.id)
-    ))
+        !(DirectHyponym g x.id y.id && DirectHyponym g y.id z.id) ||
+         (IndirectHyponym g x.id z.id && !DirectHyponym g x.id z.id))))
 
 --Theorem 3 : Assymetry
 --∀ (i, j) (i → j) → ¬ (j → i)
@@ -86,9 +88,8 @@ def Asymmetry_bool (g : Graph) : Bool :=
       v.out_edges.all (fun y =>
         match get_vertex g y.target_id with
         | none => true
-        | some _ => !IndirectHypernym g y.target_id x.id
+        | some _ => !IndirectHypernym g x.id y.target_id
       ))
-
 
 --Theorem 4 : Unique Root
 --Root(r)  :=  ∀ a ∈ S, r →* a
@@ -103,24 +104,93 @@ def HasOneUniqueRoot_bool (g : Graph) : Bool :=
 --================================================================
 --                WORDNET SPECIFIC
 --================================================================
---specific wordnet graph
 structure SynsetGraph where
-  g : Graph
-  irr: Irreflexivity_bool g :=by rfl
-  ass: Asymmetry_bool g :=by rfl
-  trsnt : Transitivity_bool g := by rfl
-  universal_root: HasOneUniqueRoot_bool g :=by rfl
+  g              : Graph
+  irr            : Irreflexivity_bool g = true
+  ass            : Asymmetry_bool g = true
+  trsnt          : Transitivity_bool g = true
+  universal_root : HasOneUniqueRoot_bool g = true
 
+namespace SynsetGraph
 
-def cyclic_sanity_check : Graph :=
+theorem irreflexive (s : SynsetGraph) : Irreflexivity_bool s.g = true := s.irr
+theorem asymmetric  (s : SynsetGraph) : Asymmetry_bool s.g = true := s.ass
+theorem transitive  (s : SynsetGraph) : Transitivity_bool s.g = true := s.trsnt
+theorem unique_root (s : SynsetGraph) : HasOneUniqueRoot_bool s.g = true := s.universal_root
+
+end SynsetGraph
+
+--================================================================
+--                SANITY CHECKS
+--================================================================
+def check (g : Graph) : Bool :=
+  Irreflexivity_bool g &&
+  Asymmetry_bool g &&
+  Transitivity_bool g &&
+  HasOneUniqueRoot_bool g
+
+def tree : Graph :=
   { vertices :=
-    [ { id := 0, concept := "A", out_edges := [{ target_id := 1, relation_name := "r" }] }
-    , { id := 1, concept := "B", out_edges := [{ target_id := 0, relation_name := "r" }] } ] }
+    [ { id := 0, concept := "animal", out_edges :=
+        [ { target_id := 1, relation_name := "is-a" }
+        , { target_id := 2, relation_name := "is-a" } ] }
+    , { id := 1, concept := "dog",    out_edges := [] }
+    , { id := 2, concept := "cat",    out_edges := [] } ] }
 
-def dag_sanity_check : Graph :=
+#eval Irreflexivity_bool     tree   -- true
+#eval Asymmetry_bool         tree   -- true
+#eval Transitivity_bool      tree   -- true
+#eval HasOneUniqueRoot_bool  tree   -- true
+#eval check tree
+
+
+def selfLoop : Graph :=
   { vertices :=
-    [ { id := 0, concept := "A", out_edges := [{ target_id := 1, relation_name := "r" }] }
-    , { id := 1, concept := "B", out_edges := [] } ] }
+    [ { id := 0, concept := "a", out_edges := [{ target_id := 0, relation_name := "r" }] } ] }
 
-#eval Asymmetry_bool cyclic_sanity_check  -- false (0 → 1 and 1 → 0)
-#eval Asymmetry_bool dag_sanity_check     -- true  (0 → 1 but 1 ⇏ 0)
+def twoCycle : Graph :=
+  { vertices :=
+    [ { id := 0, concept := "a", out_edges := [{ target_id := 1, relation_name := "r" }] }
+    , { id := 1, concept := "b", out_edges := [{ target_id := 0, relation_name := "r" }] } ] }
+
+def forest2 : Graph :=
+  { vertices :=
+    [ { id := 0, concept := "a", out_edges := [{ target_id := 1, relation_name := "r" }] }
+    , { id := 1, concept := "b", out_edges := [] }
+    , { id := 2, concept := "c", out_edges := [{ target_id := 3, relation_name := "r" }] }
+    , { id := 3, concept := "d", out_edges := [] } ] }
+
+def noShortcut : Graph :=   -- 0 → 1 → 2 but NO 0 → 2
+  { vertices :=
+    [ { id := 0, concept := "a", out_edges := [{ target_id := 1, relation_name := "r" }] }
+    , { id := 1, concept := "b", out_edges := [{ target_id := 2, relation_name := "r" }] }
+    , { id := 2, concept := "c", out_edges := [] } ] }
+
+def goodChain : Graph :=    -- 0 → 1 → 2, no shortcut: property holds
+  { vertices :=
+    [ { id := 0, concept := "a", out_edges := [{ target_id := 1, relation_name := "r" }] }
+    , { id := 1, concept := "b", out_edges := [{ target_id := 2, relation_name := "r" }] }
+    , { id := 2, concept := "c", out_edges := [] } ] }
+
+def hasShortcut : Graph :=  -- 0 → 1 → 2 AND 0 → 2: property FAILS
+  { vertices :=
+    [ { id := 0, concept := "a", out_edges :=
+        [ { target_id := 1, relation_name := "r" }
+        , { target_id := 2, relation_name := "r" } ] }
+    , { id := 1, concept := "b", out_edges := [{ target_id := 2, relation_name := "r" }] }
+    , { id := 2, concept := "c", out_edges := [] } ] }
+
+#eval Irreflexivity_bool    selfLoop    -- false  (0 → 0)
+#eval Asymmetry_bool        twoCycle    -- false
+#eval HasOneUniqueRoot_bool forest2     -- false  (two roots: 0 and 2)
+#eval Transitivity_bool     noShortcut  -- true
+#eval Asymmetry_bool        tree        -- true
+#eval Transitivity_bool     tree        -- true
+#eval HasOneUniqueRoot_bool tree        -- true
+#eval Irreflexivity_bool    tree        -- true
+#eval Transitivity_bool tree         -- true   (no 2-hop paths at all)
+#eval Transitivity_bool goodChain    -- true   (0→1→2, no 0→2)   ← the graph you called noShortcut
+#eval Transitivity_bool hasShortcut  -- false  (0→1→2 AND 0→2)   ← the actual counterexample
+#eval Transitivity_bool twoCycle     -- false  (0→1→0: premise holds for x=0,y=1,z=0,
+                                                --   and 0→0? no direct self-loop…
+                                                --   but wait, see below)
