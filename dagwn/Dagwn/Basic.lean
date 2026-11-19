@@ -33,6 +33,17 @@ def has_edge_to (edges : List Edge) (target : Nat) : Bool :=
 def has_edge_to_in_g (g : Graph) (x : Nat) : Bool :=
   g.vertices.any (fun v => v.out_edges.any (fun e => e.target_id == x))
 
+--inductive Walk : Vertex → Vertex → Type u
+--  | nil {u : Vertex} : Walk u u
+--  | cons {u v w : Vertex} (h :  u v) (p : Walk v w) : Walk u w
+--  deriving DecidableEq
+--
+--def length {u v : V} : G.Walk u v → ℕ
+--  | nil => 0
+--  | cons _ q => q.length.succ
+--
+--def IsAcyclic : Prop := ∀ ⦃v : Vertex⦄ (c : G.Walk v v), ¬c.IsCycle
+
 --================================================================
 --                SPECIFIC FUNCTIONS
 --================================================================
@@ -69,6 +80,21 @@ def IndirectHypernym (g : Graph) (x y : Nat) : Bool :=
 def Irreflexivity_bool (g : Graph) : Bool
   := g.vertices.all (fun x => !DirectHypernym g x.id x.id)
 
+def Irreflixivity (g : Graph) : Prop :=
+  ∀ x ∈ g.vertices, ¬ DirectHypernym g x.id x.id
+
+
+theorem Irreflexivity_bool_iff (g : Graph) :
+    Irreflexivity_bool g ↔ Irreflixivity g := by
+  constructor
+  · intro h x hx
+    rw [Irreflexivity_bool, List.all_eq_true] at h
+    simpa using h x hx
+  · intro h
+    rw [Irreflexivity_bool, List.all_eq_true]
+    intro x hx
+    simpa using h x hx
+
 --Theorem 2 : Transitivity
 -- ∀ (x, y , z ) (x → y ∧ y → z) → x indirect → z
 def Transitivity_bool (g : Graph) : Bool :=
@@ -101,6 +127,20 @@ def UniqueRoot_bool (g : Graph) (r : Nat) : Bool :=
 --exactly 1 unique
 def HasOneUniqueRoot_bool (g : Graph) : Bool :=
   (g.vertices.filter (fun v => UniqueRoot_bool g v.id)).length == 1
+
+--Guarantees that g has no cycle (i.e no vertice can reach itself)
+def Acyclicity (g : Graph) : Bool :=
+  g.vertices.all (fun x =>
+      match get_vertex g x.id with
+      | none => true
+      | some v =>
+          ¬ reaches g (g.vertices.length + 1) v.id v.id
+  )
+
+--def HasCycle (g : Graph) : Bool :=
+--definir o q eh ciclo
+--e provar q as propriedades provam q n tem ciclo
+
 --================================================================
 --                WORDNET SPECIFIC
 --================================================================
@@ -117,6 +157,19 @@ theorem irreflexive (s : SynsetGraph) : Irreflexivity_bool s.g = true := s.irr
 theorem asymmetric  (s : SynsetGraph) : Asymmetry_bool s.g = true := s.ass
 theorem transitive  (s : SynsetGraph) : Transitivity_bool s.g = true := s.trsnt
 theorem unique_root (s : SynsetGraph) : HasOneUniqueRoot_bool s.g = true := s.universal_root
+theorem synset_cycle (s: SynsetGraph) : Acyclicity s.g = true := by
+  have h1 := s.irr
+  have h2 := s.ass
+  have h3 := s.trsnt
+
+
+theorem strict_partial_order_proves_acyclicity (s: SynsetGraph) : Acyclicity s.g = true := sorry
+
+--parsing do arquivo wn em uma instancia de synset graph
+--funcao q carrega e faz a translate do dto
+--usar json
+
+
 
 end SynsetGraph
 
