@@ -1,4 +1,4 @@
---semantic lexical network - Wordnet
+--IS-A relationship
 structure Edge where
   target_id : Nat
   relation_name : String
@@ -80,12 +80,12 @@ def IndirectHypernym (g : Graph) (x y : Nat) : Bool :=
 def Irreflexivity_bool (g : Graph) : Bool
   := g.vertices.all (fun x => !DirectHypernym g x.id x.id)
 
-def Irreflixivity (g : Graph) : Prop :=
+def Irreflexivity (g : Graph) : Prop :=
   ∀ x ∈ g.vertices, ¬ DirectHypernym g x.id x.id
 
 
 theorem Irreflexivity_bool_iff (g : Graph) :
-    Irreflexivity_bool g ↔ Irreflixivity g := by
+    Irreflexivity_bool g ↔ Irreflexivity g := by
   constructor
   · intro h x hx
     rw [Irreflexivity_bool, List.all_eq_true] at h
@@ -95,14 +95,53 @@ theorem Irreflexivity_bool_iff (g : Graph) :
     intro x hx
     simpa using h x hx
 
+theorem Irreflexivity_bool_iff2 (g : Graph) :
+    Irreflexivity_bool g ↔ Irreflexivity g := by
+  rw [Irreflexivity_bool, List.all_eq_true]
+  constructor
+  · intro h x hx
+    simpa using h x hx
+  · intro h x hx
+    simpa using h x hx
+
 --Theorem 2 : Transitivity
 -- ∀ (x, y , z ) (x → y ∧ y → z) → x indirect → z
 def Transitivity_bool (g : Graph) : Bool :=
   g.vertices.all (fun x =>
     g.vertices.all (fun y =>
       g.vertices.all (fun z =>
-        !(DirectHyponym g x.id y.id && DirectHyponym g y.id z.id) ||
-         (IndirectHyponym g x.id z.id && !DirectHyponym g x.id z.id))))
+          !(DirectHyponym g x.id y.id && DirectHyponym g y.id z.id) ||
+          IndirectHyponym g x.id z.id)))
+
+def Transitivity (g : Graph) : Prop :=
+  ∀ x ∈ g.vertices, ∀ y ∈ g.vertices, ∀ z ∈ g.vertices,
+    DirectHyponym g x.id y.id → DirectHyponym g y.id z.id  → IndirectHyponym g x.id z.id
+
+
+theorem Transitivy_bool_iff (g : Graph) :
+  Transitivity_bool g ↔ Transitivity g := by
+  simp only [Transitivity_bool, List.all_eq_true]
+  constructor
+  · intro h x hx y hy z hz hxy hyz
+    specialize h x hx
+
+    by_cases h1 : DirectHyponym g x.id y.id
+    · by_cases h2 : DirectHyponym g y.id z.id
+      · simp [h1, h2] at h
+        exact h
+      · simp [h2] at h
+    · simp [h1] at h
+  · intro h x hx y hy z hz
+    by_cases h1 : DirectHyponym g x.id y.id
+    · by_cases h2 : DirectHyponym g y.id z.id
+      · simp [h1, h2]
+        exact h x hx y hy z hz h1 h2
+      · simp [h2]
+    · simp [h1]
+
+--Theorem 2 : Transitivity
+-- ∀ (x, y , z ) (x → y ∧ y → z) → x indirect → z
+
 
 --Theorem 3 : Assymetry
 --∀ (i, j) (i → j) → ¬ (j → i)
@@ -116,6 +155,14 @@ def Asymmetry_bool (g : Graph) : Bool :=
         | none => true
         | some _ => !IndirectHypernym g x.id y.target_id
       ))
+
+def Asymmetry (g  : Graph) : Prop :=
+  ∀ x ∈ g.vertices, ∀ y ∈ g.vertices, DirectHyponym g x.id y.id → ¬ DirectHyponym g y.id x.id
+
+theorem Asymmetry_bool_iff (g : Graph) :
+  Asymmetry_bool g ↔ Asymmetry g :=by
+  constructor
+  . intro h
 
 --Theorem 4 : Unique Root
 --Root(r)  :=  ∀ a ∈ S, r →* a
