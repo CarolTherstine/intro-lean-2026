@@ -41,7 +41,15 @@ def has_edge_to_in_g (g : Graph) (x : Nat) : Bool :=
 --def length {u v : V} : G.Walk u v → ℕ
 --  | nil => 0
 --  | cons _ q => q.length.succ
---
+
+def reaches_pos (g : Graph) (steps x y : Nat) : Bool :=
+  match steps with
+  | 0 => false
+  | steps + 1 =>
+    match get_vertex g x with
+    | none   => false
+    | some v => v.out_edges.any (fun e => reaches g steps e.target_id y)
+
 --def IsAcyclic : Prop := ∀ ⦃v : Vertex⦄ (c : G.Walk v v), ¬c.IsCycle
 
 --================================================================
@@ -70,6 +78,7 @@ def IndirectHyponym (g : Graph) (x y : Nat) : Bool :=
 --is y an indirect hypernym of x
 def IndirectHypernym (g : Graph) (x y : Nat) : Bool :=
   IndirectHyponym g y x
+
 
 --================================================================
 --                THEOREM FUNCTIONS
@@ -112,117 +121,78 @@ def Transitivity_bool (g : Graph) : Bool :=
   g.vertices.all (fun x =>
     g.vertices.all (fun y =>
       g.vertices.all (fun z =>
-          !(DirectHyponym g x.id y.id && DirectHyponym g y.id z.id) ||
-          IndirectHyponym g x.id z.id)))
+        !((IndirectHyponym g x.id y.id || DirectHyponym g x.id y.id) &&
+           DirectHyponym g y.id z.id) ||
+        IndirectHyponym g x.id z.id)))
 
 def Transitivity (g : Graph) : Prop :=
   ∀ x ∈ g.vertices, ∀ y ∈ g.vertices, ∀ z ∈ g.vertices,
-    DirectHyponym g x.id y.id → DirectHyponym g y.id z.id  → IndirectHyponym g x.id z.id
+    (IndirectHyponym g x.id y.id ∨ DirectHyponym g x.id y.id) →
+    DirectHyponym g y.id z.id →
+    IndirectHyponym g x.id z.id
 
-
-theorem Transitivy_bool_iff (g : Graph) :
-  Transitivity_bool g ↔ Transitivity g := by
+theorem Transitivity_bool_iff (g : Graph) :
+    Transitivity_bool g ↔ Transitivity g := by
   simp only [Transitivity_bool, List.all_eq_true, Bool.or_eq_true]
   constructor
-  intros h x hx y hy z hz
-  case mp =>
-    intro hxy hyz
+  · intro h x hx y hy z hz hxy hyz
     have h' := h x hx y hy z hz
     rcases h' with h_neg | h_ind
-    · simp [hxy, hyz] at h_neg
+    · simp only [Bool.not_eq_true', Bool.and_eq_false_iff, Bool.or_eq_false_iff] at h_neg
+      rcases h_neg with ⟨hind_f, hdir_f⟩ | hyz_f
+      · rcases hxy with hind_t | hdir_t
+        · simp [hind_t] at hind_f
+        · simp [hdir_t] at hdir_f
+      · simp [hyz] at hyz_f
     · exact h_ind
-  case mpr =>
-    intro h x hx y hy z hz
-    have h' := h x hx y hy z hz
-    cases hxy : DirectHyponym g x.id y.id
-    case true =>
-      cases hyz : DirectHyponym g y.id z.id
-      case true =>
-        right
-        exact h' hxy hyz
-      case false =>
+  · intro h x hx y hy z hz
+    by_cases hyz_t : DirectHyponym g y.id z.id = true
+    · by_cases h_or : IndirectHyponym g x.id y.id = true ∨ DirectHyponym g x.id y.id = true
+      · right
+        exact h x hx y hy z hz h_or hyz_t
+      · left
+        simp only [Bool.not_eq_true', Bool.and_eq_false_iff, Bool.or_eq_false_iff]
         left
-        rw[Bool.not_and, Bool.not_false, Bool.not_true]
+        simp [not_or] at h_or
         trivial
-    case false =>
-      left
-      cases hyz : DirectHyponym g y.id z.id
-      case true =>
-        rw[Bool.not_and, Bool.not_false]
-        trivial
-      case false =>
-        rw[Bool.not_and, Bool.not_false]
-        trivial
-
---Theorem 2 : Transitivity
--- ∀ (x, y , z ) (x → y ∧ y → z) → x indirect → z
+    · left
+      simp only [Bool.not_eq_true', Bool.and_eq_false_iff]
+      right
+      simpa using hyz_t
 
 
 --Theorem 3 : Assymetry
 --∀ (i, j) (i → j) → ¬ (j → i)
 def Asymmetry_bool (g : Graph) : Bool :=
   g.vertices.all (fun x =>
-    match get_vertex g x.id with
-    | none => true
-    | some v =>
-      v.out_edges.all (fun y =>
-        if y.target_id == x.id then true
-        else
-        match get_vertex g y.target_id with
-        | none => true
-        | some _ => !IndirectHypernym g x.id y.target_id
+      g.vertices.all (fun y =>
+          if DirectHyponym g x.id y.id then
+                      !IndirectHypernym g x.id y.id
+                    else
+                      true
       ))
 
 def Asymmetry (g  : Graph) : Prop :=
-  ∀ x ∈ g.vertices, ∀ y ∈ g.vertices, (x ≠ y ∧ DirectHyponym g y.id x.id ) → ¬ IndirectHypernym g x.id y.id
+  ∀ x ∈ g.vertices, ∀ y ∈ g.vertices, (DirectHyponym g x.id y.id ) → ¬ IndirectHypernym g x.id y.id
 
-theorem Asymmetry_bool_iff (g : Graph) :
-  Asymmetry_bool g ↔ Asymmetry g :=by
-  simp only [Asymmetry_bool, get_vertex, List.all_eq_true]
+
+theorem Asymetry_bool_iff (g : Graph) :
+  Asymmetry_bool g ↔ Asymmetry g := by
+  unfold Asymmetry_bool Asymmetry
+  simp only [List.all_eq_true, Bool.ite_eq_true_distrib, Bool.not_eq_true']
   constructor
-  intros h x hx y hy hxnoty
-  case mp =>
-    intro hxy hyz
-    have h' := h x hx
-    split at h'
-    case h_1 =>
-      rename_i heq_none
-      have := List.find?_eq_none.mp heq_none
-      have := this x hx
-      simp at this
-    case h_2 =>
-      rename_i heq_some
-      have := List.find?_eq_some_iff_getElem.mp heq_some
-      simp only [DirectHyponym, get_vertex] at hxy
-      rw [heq_some] at hxy
-      dsimp only at hxy
-      simp only [has_edge_to, List.any_eq_true, beq_iff_eq] at hxy
-      obtain ⟨e, he, hid⟩ := hxy
-      rw [List.all_eq_true] at h'
-      have hedge := h' e he
-      rw [hid] at hedge
-      split at hedge
-      case h_1 =>
-        rename_i heq_none
-        have := List.find?_eq_none.mp heq_none
-        have := this y hy
-        simp at this
-      case h_2 =>
-            rename_i v_y heq_y
-            simp [IndirectHypernym, IndirectHyponym, get_vertex] at hedge
-            rw [heq_y, heq_some] at hedge
-            simp only at hedge
-            change reaches g (g.vertices.length + 1) y.id x.id = false at hedge
-            have htrue : reaches g (g.vertices.length + 1) y.id x.id = true := by
-              simp only [reaches]
-              rw [heq_y]
-            --rw [IndirectHypernym, IndirectHyponym, get_vertex] at hedge
-            --simp only [get_vertex] at hedge
-  case mpr =>
-    sorry
-    --cases hxy : DirectHyponym g x y
-    --case true =>
-    --case false =>
+  · intro h x hx y hy h_hypo
+    have h_inner := h x hx y hy
+    simp [h_hypo] at h_inner
+    rw[h_inner]
+    trivial
+  · intro h x hx y hy
+    case mpr =>
+      split
+      · next h_hypo =>
+        simpa using h x hx y hy h_hypo
+      · trivial
+
 --Theorem 4 : Unique Root
 --Root(r)  :=  ∀ a ∈ S, r →* a
 --∃! r ∈ S, Root(r)
@@ -234,14 +204,11 @@ def UniqueRoot_bool (g : Graph) (r : Nat) : Bool :=
 def HasOneUniqueRoot_bool (g : Graph) : Bool :=
   (g.vertices.filter (fun v => UniqueRoot_bool g v.id)).length == 1
 
---Guarantees that g has no cycle (i.e no vertice can reach itself)
 def Acyclicity (g : Graph) : Bool :=
   g.vertices.all (fun x =>
-      match get_vertex g x.id with
-      | none => true
-      | some v =>
-          ¬ reaches g (g.vertices.length + 1) v.id v.id
-  )
+    match get_vertex g x.id with
+    | none   => true
+    | some v => !reaches_pos g (g.vertices.length + 1) v.id v.id)
 
 --def HasCycle (g : Graph) : Bool :=
 --definir o q eh ciclo
@@ -267,7 +234,7 @@ theorem synset_cycle (s: SynsetGraph) : Acyclicity s.g = true := by
   have h1 := s.irr
   have h2 := s.ass
   have h3 := s.trsnt
-
+  sorry
 
 theorem strict_partial_order_proves_acyclicity (s: SynsetGraph) : Acyclicity s.g = true := sorry
 
