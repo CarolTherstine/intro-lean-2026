@@ -61,11 +61,13 @@ def DirectHyponym (g : Graph) (x y : Nat) : Bool :=
 def DirectHypernym (g : Graph) (x y : Nat) : Bool :=
   DirectHyponym g y x
 
+--is x a indirect hypernym of y
 def IndirectHyponym (g : Graph) (x y : Nat) : Bool :=
   match get_vertex g x, get_vertex g y with
   | some _, some _ => reaches g (g.vertices.length + 1) x y
   | _, _           => false
 
+--is y an indirect hypernym of x
 def IndirectHypernym (g : Graph) (x y : Nat) : Bool :=
   IndirectHyponym g y x
 
@@ -164,45 +166,63 @@ def Asymmetry_bool (g : Graph) : Bool :=
     | none => true
     | some v =>
       v.out_edges.all (fun y =>
+        if y.target_id == x.id then true
+        else
         match get_vertex g y.target_id with
         | none => true
         | some _ => !IndirectHypernym g x.id y.target_id
       ))
 
 def Asymmetry (g  : Graph) : Prop :=
-  ∀ x ∈ g.vertices, ∀ y ∈ g.vertices, DirectHyponym g x.id y.id → ¬ DirectHyponym g y.id x.id
+  ∀ x ∈ g.vertices, ∀ y ∈ g.vertices, (x ≠ y ∧ DirectHyponym g y.id x.id ) → ¬ IndirectHypernym g x.id y.id
 
 theorem Asymmetry_bool_iff (g : Graph) :
   Asymmetry_bool g ↔ Asymmetry g :=by
   simp only [Asymmetry_bool, get_vertex, List.all_eq_true]
   constructor
-  intros h x hx y hy hxy hzy
+  intros h x hx y hy hxnoty
   case mp =>
-    have hx_fact := h x hx
-    rcases hx_find : List.find? (fun v => v.id == x.id) g.vertices with _ | ⟨vid, concept, edges⟩
-    case none =>
-        have := List.find?_eq_none.mp hx_find
-        have := this x hx
+    intro hxy hyz
+    have h' := h x hx
+    split at h'
+    case h_1 =>
+      rename_i heq_none
+      have := List.find?_eq_none.mp heq_none
+      have := this x hx
+      simp at this
+    case h_2 =>
+      rename_i heq_some
+      have := List.find?_eq_some_iff_getElem.mp heq_some
+      simp only [DirectHyponym, get_vertex] at hxy
+      rw [heq_some] at hxy
+      dsimp only at hxy
+      simp only [has_edge_to, List.any_eq_true, beq_iff_eq] at hxy
+      obtain ⟨e, he, hid⟩ := hxy
+      rw [List.all_eq_true] at h'
+      have hedge := h' e he
+      rw [hid] at hedge
+      split at hedge
+      case h_1 =>
+        rename_i heq_none
+        have := List.find?_eq_none.mp heq_none
+        have := this y hy
         simp at this
-    case some =>
-        have := List.mem_of_find?_eq_some hx_find
-        rw [hx_find] at hx_fact
-        dsimp only at hx_fact
-        have hsome := List.find?_eq_some_iff_getElem.mp hx_find
-        dsimp only at hsome hx_find
-        simp only [DirectHyponym, has_edge_to, List.any_eq_true,List.all_eq_true, beq_iff_eq] at hsome
-        --have hvid : vid = x.id := by
-        --  simpa using hsome.1
-        --obtain ⟨i, hi, hget, _⟩ := hsome.2
-        --have hvid : vid = x.id := by simpa using hsome.1
-      -- use List.get_of_mem hx to get x's index, then injectivity of id
-
-  -- hx' : x.out_edges.all (fun e => match List.find? ... e.target_id with ...) = true
+      case h_2 =>
+            rename_i v_y heq_y
+            simp [IndirectHypernym, IndirectHyponym, get_vertex] at hedge
+            rw [heq_y, heq_some] at hedge
+            simp only at hedge
+            change reaches g (g.vertices.length + 1) y.id x.id = false at hedge
+            have htrue : reaches g (g.vertices.length + 1) y.id x.id = true := by
+              simp only [reaches]
+              rw [heq_y]
+            --rw [IndirectHypernym, IndirectHyponym, get_vertex] at hedge
+            --simp only [get_vertex] at hedge
   case mpr =>
-    cases hxy : DirectHyponym g x y
-    case true =>
-      trivial
-    case false =>
+    sorry
+    --cases hxy : DirectHyponym g x y
+    --case true =>
+    --case false =>
 --Theorem 4 : Unique Root
 --Root(r)  :=  ∀ a ∈ S, r →* a
 --∃! r ∈ S, Root(r)
