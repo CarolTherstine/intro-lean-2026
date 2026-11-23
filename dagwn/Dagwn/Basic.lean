@@ -176,22 +176,33 @@ theorem Asymmetry_bool_iff (g : Graph) :
   Asymmetry_bool g ↔ Asymmetry g :=by
   simp only [Asymmetry_bool, get_vertex, List.all_eq_true]
   constructor
-  intros h x hx y hy
+  intros h x hx y hy hxy hzy
   case mp =>
-    intro hxy hyz
-    cases hxy : DirectHyponym g x.id y.id
-    case true =>
-      have hx' := h x hx
+    have hx_fact := h x hx
+    rcases hx_find : List.find? (fun v => v.id == x.id) g.vertices with _ | ⟨vid, concept, edges⟩
+    case none =>
+        have := List.find?_eq_none.mp hx_find
+        have := this x hx
+        simp at this
+    case some =>
+        have := List.mem_of_find?_eq_some hx_find
+        rw [hx_find] at hx_fact
+        dsimp only at hx_fact
+        have hsome := List.find?_eq_some_iff_getElem.mp hx_find
+        dsimp only at hsome hx_find
+        simp only [DirectHyponym, has_edge_to, List.any_eq_true,List.all_eq_true, beq_iff_eq] at hsome
+        --have hvid : vid = x.id := by
+        --  simpa using hsome.1
+        --obtain ⟨i, hi, hget, _⟩ := hsome.2
+        --have hvid : vid = x.id := by simpa using hsome.1
+      -- use List.get_of_mem hx to get x's index, then injectivity of id
+
   -- hx' : x.out_edges.all (fun e => match List.find? ... e.target_id with ...) = true
-    case false =>
-      sorry
   case mpr =>
-    intro hxy hyx
-    intro hmem
-    cases hv : get_vertex g hxy.id
-    cases hxy : DirectHyponym g x.id y.id
+    cases hxy : DirectHyponym g x y
     case true =>
       trivial
+    case false =>
 --Theorem 4 : Unique Root
 --Root(r)  :=  ∀ a ∈ S, r →* a
 --∃! r ∈ S, Root(r)
