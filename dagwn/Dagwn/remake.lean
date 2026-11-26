@@ -75,23 +75,19 @@ theorem acyclic_with_irrefl_trans_asym :
   constructor
   · unfold Acyclic Asymmetry Irreflexive transvt
     intro h
-    constructor
-    . intro x y hxy hyx
-      have hdir : Reaches g x x := by
-        apply @Reaches.step g x y x
-        ·
-          have X := reaches_inv g x y hxy
-          exact (reaches_inv g x y hxy).left
-        ·
-          have Y := reaches_inv g x y hxy
-          exact (reaches_inv g y x hyx).left
-        ·
-          have X := reaches_inv g x y hxy
-          exact (reaches_inv g x y hxy).left
-        · sorry
-        .sorry
-    · sorry
-  · sorry
+    refine ⟨?_, ?_, ?_⟩
+    .
+      intro x y hxy hyx
+      exact h x (Reaches.trans hxy hyx)
+    . intro x hx hedge
+      exact h x (Reaches.basis x x hx hx hedge)
+    .
+      intro x y z hxy hyz
+      exact Reaches.trans hxy hyz
+  .
+    unfold Acyclic Asymmetry Irreflexive transvt
+    rintro ⟨hasym, -, -⟩ x hxx
+    exact hasym x x hxx hxx
 
 def G : Graph :=
   { vertices :=
@@ -104,7 +100,7 @@ def G : Graph :=
 
 #check @Reaches.step G G.vertices[0] G.vertices[1] G.vertices[2]
 
-example : Reaches G 0 2 := by
+example : Reaches G G.vertices[0] G.vertices[2] := by
   apply @Reaches.step G G.vertices[0] G.vertices[1] G.vertices[2]
   · decide
   · decide
@@ -114,56 +110,3 @@ example : Reaches G 0 2 := by
     . decide
     . decide
     . decide
-
-def has_edge_to (edges : List Nat) (target : Nat) : Bool :=
-  edges.any (fun e => e == target )
-
-def has_edge_to_in_g (g : Graph) (x : Nat) : Bool :=
-  g.vertices.any (fun v => v.out_edges.any (fun e => e.target_id == x))
-
-def reaches_pos (g : Graph) (steps x y : Nat) : Bool :=
-  match steps with
-  | 0 => false
-  | steps + 1 =>
-    match get_vertex g x with
-    | none   => false
-    | some v => v.out_edges.any (fun e => reaches g steps e.target_id y)
-
---================================================================
---                SPECIFIC FUNCTIONS
---================================================================
---lower/child
---is x a parent to y
---is y an hyponym of x
-def DirectHyponym (g : Graph) (x y : Nat) : Bool :=
-  match get_vertex g x with
-  | none   => false
-  | some v => has_edge_to v.out_edges y
-
---is x a indirect hypernym of y
-def IndirectHyponym (g : Graph) (x y : Nat) : Bool :=
-  match get_vertex g x, get_vertex g y with
-  | some _, some _ => reaches g (g.vertices.length + 1) x y
-  | _, _           => false
-
-
-
---================================================================
---                THEOREM FUNCTIONS
---================================================================
-
-def WellFormed (g : Graph) : Prop :=
-  (∀ x ∈ g.vertices, get_vertex g x.id = some x) ∧
-  (∀ v ∈ g.vertices, ∀ e ∈ v.out_edges, ∃ w ∈ g.vertices, w.id = e.target_id)
-
-def Irreflexivity (g : Graph) : Prop :=
-  ∀ x ∈ g.vertices, ¬ DirectHyponym g x.id x.id
-
-inductive Transitivity (g : Graph) (x : Nat) : Nat → Prop where
-  | step {cur : Nat} :
-      x ≠ cur ∧
-      reaches g (g.vertices.length + 1) x cur = true →
-      (∀ nxt : Nat, (cur ≠ nxt ∧  DirectHyponym g cur nxt = true) → Transitivity g x nxt)
-
-def Asymmetry (g  : Graph) : Prop :=
-  ∀ x ∈ g.vertices, ∀ y ∈ g.vertices, (x ≠ y ∧ DirectHyponym g x.id y.id ) → ¬ IndirectHyponym g y.id x.id
