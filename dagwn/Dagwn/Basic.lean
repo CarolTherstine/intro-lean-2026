@@ -66,8 +66,6 @@ def DirectHyponym (g : Graph) (x y : Nat) : Bool :=
 --upper/parent
 --is x a child to y
 --is y an hypernym of x
-def DirectHypernym (g : Graph) (x y : Nat) : Bool :=
-  DirectHyponym g y x
 
 --is x a indirect hypernym of y
 def IndirectHyponym (g : Graph) (x y : Nat) : Bool :=
@@ -76,8 +74,6 @@ def IndirectHyponym (g : Graph) (x y : Nat) : Bool :=
   | _, _           => false
 
 --is y an indirect hypernym of x
-def IndirectHypernym (g : Graph) (x y : Nat) : Bool :=
-  IndirectHyponym g y x
 
 
 --================================================================
