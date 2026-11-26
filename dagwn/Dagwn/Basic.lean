@@ -219,6 +219,7 @@ theorem Acyclicity_from_props (g: Graph) :
 (Irreflexivity_bool g = true ∧ Asymmetry_bool g = true ∧ Transitivity_bool g = true )
 → Acyclic g := by
   intro x y z
+  sorry
 --theorem acyclic_with_irrefl_trans_asym
 --(g : Graph)
 --(hIrrefl : Irreflexivity g)
@@ -226,11 +227,103 @@ theorem Acyclicity_from_props (g: Graph) :
 --(hTrans : Transitivity g)
 --(hAcyc : Acyclic g)
 
+-- 1. Well-formedness: edges stay inside g.vertices and IDs resolve cleanly
+def WellFormed (g : Graph) : Prop :=
+  (∀ x ∈ g.vertices, get_vertex g x.id = some x) ∧
+  (∀ v ∈ g.vertices, ∀ e ∈ v.out_edges, ∃ w ∈ g.vertices, w.id = e.target_id)
+
+-- 2. Monotonicity of `reaches` in the step bound
+theorem reaches_mono (g : Graph) (n x y : Nat) :
+    reaches g n x y = true → reaches g (n + 1) x y = true := by
+  intro h
+  simp only [reaches, Bool.or_eq_true]
+  cases eq_xy : (x == y)
+  · right
+    rw [reaches] at h
+    simp [eq_xy] at h
+    exact h
+  · left; rfl
+
+-- 3. No self-loops at positive length (combines Irreflexivity + Asymmetry)
+theorem no_pos_cycle (g : Graph) (hwf : WellFormed g)
+    (hirr : Irreflexivity g) (hasym : Asymmetry g)
+    (u : Vertex) (hu : u ∈ g.vertices) :
+    reaches_pos g (g.vertices.length + 1) u.id u.id = false := by
+  -- Proof by contradiction: suppose reaches_pos ... = true
+  rw [Bool.eq_false_iff]
+  intro hpos
+  unfold reaches_pos at hpos
+  rw [hwf.1 u hu] at hpos
+  rw [List.any_eq_true] at hpos
+  rcases hpos with ⟨e, he_mem, hreach⟩
+  -- Find the target vertex w ∈ g.vertices
+  rcases hwf.2 u hu e he_mem with ⟨w, hw_mem, hw_id⟩
+  rw [← hw_id] at hreach he_mem
+  -- Establish DirectHyponym g u.id w.id = true
+  have hdir : DirectHyponym g u.id w.id = true := by
+    unfold DirectHyponym has_edge_to
+    rw [hwf.1 u hu, List.any_eq_true]
+    exact ⟨e, he_mem, by simp [hw_id]⟩
+  -- Lift reaches g len w.id u.id to IndirectHyponym g w.id u.id
+  have hind : IndirectHyponym g w.id u.id = true := by
+    unfold IndirectHyponym
+    rw [hwf.1 w hw_mem, hwf.1 u hu]
+    exact reaches_mono g g.vertices.length w.id u.id hreach
+  -- Contradicts Asymmetry g u hu w hw hdir
+  exact hasym u hu w hw_mem hdir hind
+
+-- 4. Well-founded induction to build AcyclicFrom
+-- Because g has no cycles (no_pos_cycle), every path terminates in ≤ g.vertices.length steps.
+-- Induct on `fuel : Nat` where `reaches_pos g (fuel + 1) u.id u.id = false`
+-- or on the cardinality of reachable vertices.
+theorem acyclicFrom_aux (g : Graph) (hwf : WellFormed g)
+    (hirr : Irreflexivity g) (hasym : Asymmetry g)
+    (k : Nat) (u : Vertex) (hu : u ∈ g.vertices)
+    (hk : ∀ y, reaches_pos g (k + 1) u.id y = true → False) :
+    AcyclicFrom g u.id := by
+  induction k generalizing u with
+  | zero =>
+    refine AcyclicFrom.free (no_pos_cycle g hwf hirr hasym u hu) ?_
+    intro v hv e he
+    rw [hwf.1 u hu] at hv
+    injection hv with hv_eq; subst hv_eq
+    exfalso
+    apply hk e.target_id
+    unfold reaches_pos
+    rw [hwf.1 u hu, List.any_eq_true]
+    refine ⟨e, he, ?_⟩
+    simp [reaches]
+  | succ k ih =>
+    refine AcyclicFrom.free (no_pos_cycle g hwf hirr hasym u hu) ?_
+    intro v hv e he
+    rw [hwf.1 u hu] at hv
+    injection hv with hv_eq; subst hv_eq
+    rcases hwf.2 u hu e he with ⟨w, hw_mem, hw_id⟩
+    rw [← hw_id]
+    apply ih w hw_mem
+    intro y hy
+    apply hk y
+    -- A path of length k+1 from w gives a path of length k+2 from u
+    unfold reaches_pos at hy ⊢
+    rw [hwf.1 u hu, List.any_eq_true]
+    refine ⟨e, he, ?_⟩
+    rw [← hw_id, reaches]
+    simp only [Bool.or_eq_true]
+    right
+    exact hy
+
 theorem acyclic_with_irrefl_trans_asym
 (g : Graph)
 (hAcyc : Acyclic g) :
-∀ g : Graph, Acyclic g → SynsetGraph g :=by
-  simp []
+∀ g : Graph, Acyclic g →
+ Transitivity_bool g = true ∧ Asymmetry_bool g = true ∧ Irreflexivity_bool g = true
+ :=by
+  intro x y
+  simp[Acyclic] at y
+  simp [Asymetry_bool_iff, Irreflexivity_bool_iff]
+  simp[Transitivity_bool, Asymmetry, Irreflexivity]
+  simp[IndirectHypernym, DirectHyponym, IndirectHyponym]
+
 
 
 theorem acyclic_from_of_irrefl_trans_asym
