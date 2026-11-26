@@ -121,6 +121,14 @@ theorem Irreflexivity_bool_iff2 (g : Graph) :
 
 --Theorem 2 : Transitivity
 -- ∀ (x, y , z ) (x → y ∧ y → z) → x indirect → z
+def Transitivity_bool (g : Graph) : Bool :=
+  g.vertices.all (fun x =>
+    g.vertices.all (fun y =>
+      g.vertices.all (fun z =>
+        !((IndirectHyponym g x.id y.id || DirectHyponym g x.id y.id) &&
+           DirectHyponym g y.id z.id) ||
+        IndirectHyponym g x.id z.id)))
+
 inductive Transitivity (g : Graph) (x : Nat) : Nat → Prop where
   | step {cur : Nat} :
       reaches g (g.vertices.length + 1) x cur = true →
@@ -128,6 +136,8 @@ inductive Transitivity (g : Graph) (x : Nat) : Nat → Prop where
       (∀ nxt : Nat, DirectHyponym g cur nxt = true → Transitivity g x nxt)
       -- → Transitivity g x cur
 
+--theorem Transitivity_bool_iff (g : Graph) :
+--∀ x, Transitivity_bool = true := by sorry
 
 --===========================================================================
 
@@ -194,6 +204,7 @@ theorem transitive  (s : SynsetGraph) : Transitivity_bool s.g = true := s.trsnt
 theorem unique_root (s : SynsetGraph) : HasOneUniqueRoot_bool s.g = true := s.universal_root
 
 
+
 inductive AcyclicFrom (g : Graph) : Nat → Prop where
   | free {u : Nat} :
       reaches_pos g (g.vertices.length + 1) u u = false →
@@ -204,51 +215,66 @@ inductive AcyclicFrom (g : Graph) : Nat → Prop where
 def Acyclic (g : Graph) : Prop :=
   ∀ v ∈ g.vertices, AcyclicFrom g v.id
 
-private theorem reaches_append (g : Graph) :
-    ∀ (n m a b c : Nat),
-      reaches g n a b = true →
-      reaches g m b c = true →
-      reaches g (n + m) a c = true := by
-  intro n
-  induction n with
-  | zero =>
-    intro m a b c hab hbc
-    simp only [reaches, beq_iff_eq] at hab
-    subst hab
-    simpa using hbc
-  | succ n ih =>
-    intro m a b c hab hbc
-    simp only [reaches, Bool.or_eq_true, beq_iff_eq] at hab ⊢
-    rcases hab with rfl | hstep
-    · -- `a = b`, so `hbc` already goes from `a` to `c` in `m` steps;
-      -- stepping through `a` in `n + 1` steps still reaches `c`
-      right
-      cases hv : get_vertex g a with
+theorem Acyclicity_from_props (g: Graph) :
+(Irreflexivity_bool g = true ∧ Asymmetry_bool g = true ∧ Transitivity_bool g = true )
+→ Acyclic g := by
+  intro x y z
+--theorem acyclic_with_irrefl_trans_asym
+--(g : Graph)
+--(hIrrefl : Irreflexivity g)
+--(hAsym : Asymmetry g)
+--(hTrans : Transitivity g)
+--(hAcyc : Acyclic g)
+
+theorem acyclic_with_irrefl_trans_asym
+(g : Graph)
+(hAcyc : Acyclic g) :
+∀ g : Graph, Acyclic g → SynsetGraph g :=by
+  simp []
+
+
+theorem acyclic_from_of_irrefl_trans_asym
+    (g : Graph)
+    (hIrrefl : Irreflexivity g)
+    (hAsym : Asymmetry g)
+    (u : Vertex)
+    (hu_mem : u ∈ g.vertices)
+    (hTransU : ∀ z, reaches g (g.vertices.length + 1) u.id z = true → Transitivity g u.id z)
+    (hChildAc : ∀ v : Vertex, get_vertex g u.id = some v →
+      ∀ e ∈ v.out_edges, AcyclicFrom g e.target_id) :
+    AcyclicFrom g u.id := by
+  refine AcyclicFrom.free ?_ hChildAc
+  cases hpos : reaches_pos g (g.vertices.length + 1) u.id u.id with
+  | false => rfl
+  | true =>
+    -- Unfold one step of `reaches_pos` from `u.id` back to `u.id`
+    cases hlen : g.vertices.length with
+    | zero =>
+      simp [reaches_pos] at hpos
+    | succ n =>
+      simp only [reaches_pos] at hpos
+      cases hvu : get_vertex g u.id with
       | none =>
-        -- If `get_vertex g a = none`, `hbc` cannot step further unless `a = c`
-        simp only [reaches, Bool.or_eq_true, beq_iff_eq] at hbc
-        rcases hbc with rfl | hbad
-        · simp [reaches]
-        · rw [hv] at hbad; simp at hbad
-      | some va =>
-        -- If `va.out_edges` is non-empty or we weaken `hbc` to `n + 1 + m`:
+        rw [hvu] at hpos
+        simp at hpos
+      | some vu =>
+        rw [hvu] at hpos
+        simp only [Bool.any_eq_true] at hpos
+        rcases hpos with ⟨e, he_mem, he_to_u⟩
+        -- If `e.target_id == u.id` and `he_to_u` is 0-step (`rfl`), we have a direct
+        -- self-edge `u.id -> u.id`, contradicting `hIrrefl u hu_mem`.
+        -- Otherwise `e.target_id` reaches `u.id` in `n` steps while `hTransU` gives
+        -- `Transitivity g u.id e.target_id`, contradicting `hAsym`.
         sorry
-    · right
-      cases hv : get_vertex g a with
-      | none => rw [hv] at hstep; simp at hstep
-      | some va =>
-        rw [hv] at hstep
-        simp only [Bool.any_eq_true] at hstep ⊢
-        rcases hstep with ⟨e, he, he_r⟩
-        exact ⟨e, he, ih m e.target_id b c he_r hbc⟩
 
 theorem Acyclicity (g : Graph) (hAc : Acyclic g) :
   ∀ (x y : Nat) (v w : Vertex),
   (get_vertex g x = some v ∧ get_vertex g y = some w ∧ v.id ≠ w.id )
   → (reaches g (g.vertices.length + 1) v.id w.id)
-  → ¬ (reaches g (g.vertices.length + 1) w.id v.id) :=by
-  intro x y v w hi hreach_vw hreach_wv
+  → ! reaches g (g.vertices.length + 1) w.id v.id :=by
+  intro x y v w hi hreach_vw
   obtain ⟨hv, hw, hne⟩ := hi
+  simp
   simp only [get_vertex] at hv hw
   have hv_mem : v ∈ g.vertices := by
     induction g.vertices with
